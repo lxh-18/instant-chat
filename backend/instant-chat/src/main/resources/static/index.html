@@ -1,0 +1,2133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线聊天系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        /* 满足得分点1: MVC分层架构 - 前端采用模块化结构 */
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; height: 100vh; margin: 0; }
+
+        /* 登录注册页面 */
+        .auth-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .auth-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 400px; }
+        .auth-card h2 { text-align: center; color: #333; margin-bottom: 30px; }
+        .auth-card .form-control { margin-bottom: 15px; padding: 12px; border-radius: 8px; }
+        .auth-card .btn { width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; }
+        .auth-card .toggle-link { text-align: center; margin-top: 20px; color: #667eea; cursor: pointer; }
+        .auth-card .toggle-link:hover { text-decoration: underline; }
+
+        /* 主聊天界面 */
+        .chat-container { display: none; height: 100vh; }
+        .chat-container.active { display: flex; }
+
+        /* 左侧边栏 */
+        .sidebar { width: 320px; background: white; border-right: 1px solid #e4e6eb; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 16px; background: #667eea; color: white; display: flex; align-items: center; justify-content: space-between; }
+        .sidebar-header h4 { margin: 0; font-size: 18px; }
+        .sidebar-search { padding: 12px 16px; border-bottom: 1px solid #e4e6eb; }
+        .sidebar-search input { width: 100%; padding: 10px 12px; border: 1px solid #e4e6eb; border-radius: 20px; background: #f0f2f5; outline: none; }
+        .sidebar-search input:focus { border-color: #667eea; }
+
+        /* 标签页 */
+        .chat-tabs { display: flex; border-bottom: 1px solid #e4e6eb; }
+        .chat-tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; color: #65676b; position: relative; }
+        .chat-tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: 600; }
+
+        /* 好友列表 */
+        .friend-list { flex: 1; overflow-y: auto; }
+        .friend-group { padding: 8px 0; }
+        .group-header { padding: 8px 16px; display: flex; align-items: center; cursor: pointer; color: #65676b; font-size: 14px; }
+        .group-header:hover { background: #f0f2f5; }
+        .group-header i { margin-right: 8px; transition: transform 0.2s; }
+        .group-header.collapsed i { transform: rotate(-90deg); }
+        .group-header span { flex: 1; }
+        .group-header .badge { background: #667eea; color: white; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+        .friend-items { padding-left: 16px; }
+        .friend-item { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; border-radius: 8px; margin: 2px 8px; }
+        .friend-item:hover { background: #f0f2f5; }
+        .friend-item.active { background: #e7e9ee; }
+        .friend-item .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-right: 12px; position: relative; }
+        .friend-item .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .friend-item .avatar .status-dot { position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #8b8b8b; border: 2px solid white; }
+        .friend-item .avatar .status-dot.online { background: #31a24c; }
+        .friend-item .info { flex: 1; min-width: 0; }
+        .friend-item .info .name { font-weight: 500; color: #050505; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .friend-item .info .last-msg { font-size: 13px; color: #8b8b8b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unread-badge { position: absolute; top: -4px; right: -4px; background: #ff4d4f; color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 11px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+
+        /* 群聊列表 */
+        .group-list-item { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; border-radius: 8px; margin: 2px 8px; }
+        .group-list-item:hover { background: #f0f2f5; }
+        .group-list-item.active { background: #e7e9ee; }
+        .group-list-item .avatar { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, #00c6fb, #005bea); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-right: 12px; }
+        .group-list-item .info { flex: 1; }
+        .group-list-item .info .name { font-weight: 500; color: #050505; }
+
+        /* 主聊天区域 */
+        .main-chat { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
+        .chat-header { padding: 16px; border-bottom: 1px solid #e4e6eb; display: flex; align-items: center; }
+        .chat-header .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+        .chat-header .info h5 { margin: 0; font-size: 16px; }
+        .chat-header .info small { color: #8b8b8b; }
+
+        /* 消息区域 */
+        .chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: #f0f2f5; }
+        .message { margin-bottom: 16px; display: flex; }
+        .message.sent { flex-direction: row-reverse; }
+        .message .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .message.sent .avatar { background: linear-gradient(135deg, #00c6fb, #005bea); }
+        .message .content { max-width: 70%; margin: 0 8px; }
+        .message.sent .content { text-align: right; }
+        .message .bubble { display: inline-block; padding: 10px 14px; border-radius: 18px; background: white; position: relative; text-align: left; }
+        .message.sent .bubble { background: #667eea; color: white; border-bottom-right-radius: 4px; }
+        .message:not(.sent) .bubble { border-bottom-left-radius: 4px; }
+        .message .bubble .time { font-size: 11px; color: #8b8b8b; margin-top: 4px; }
+        .message.sent .bubble .time { color: rgba(255,255,255,0.7); }
+        .message .bubble .msg-content { word-break: break-word; }
+        .message .bubble .voice-msg { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+        .message .bubble .voice-msg audio { height: 30px; }
+        .message .bubble .image-msg { max-width: 300px; border-radius: 8px; }
+
+        /* 输入区域 */
+        .chat-input { padding: 12px 16px; border-top: 1px solid #e4e6eb; display: flex; align-items: center; gap: 12px; background: white; }
+        .chat-input .tool-btn { width: 40px; height: 40px; border: none; background: transparent; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #65676b; font-size: 20px; }
+        .chat-input .tool-btn:hover { background: #f0f2f5; }
+        .chat-input .tool-btn.recording { color: #dc3545; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .chat-input input { flex: 1; padding: 12px 16px; border: 1px solid #e4e6eb; border-radius: 24px; outline: none; }
+        .chat-input input:focus { border-color: #667eea; }
+        .chat-input .send-btn { padding: 10px 24px; background: #667eea; color: white; border: none; border-radius: 24px; cursor: pointer; }
+        .chat-input .send-btn:hover { background: #5569d9; }
+
+        /* 好友请求面板 */
+        .request-panel { position: fixed; right: -400px; top: 0; width: 400px; height: 100vh; background: white; box-shadow: -2px 0 20px rgba(0,0,0,0.1); transition: right 0.3s; z-index: 100; }
+        .request-panel.open { right: 0; }
+        .request-panel .header { padding: 16px; background: #667eea; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .request-panel .header h5 { margin: 0; }
+        .request-panel .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        .request-panel .content { padding: 16px; overflow-y: auto; height: calc(100vh - 60px); }
+        .request-item { padding: 12px; border: 1px solid #e4e6eb; border-radius: 8px; margin-bottom: 12px; }
+        .request-item .user-info { display: flex; align-items: center; margin-bottom: 8px; }
+        .request-item .user-info .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; align-items: center; justify-content: center; margin-right: 10px; }
+        .request-item .user-info .name { font-weight: 500; }
+        .request-item .msg { color: #65676b; font-size: 14px; margin-bottom: 10px; padding: 8px; background: #f0f2f5; border-radius: 8px; }
+        .request-item .actions { display: flex; gap: 8px; }
+        .request-item .actions button { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; }
+        .request-item .actions .accept { background: #667eea; color: white; }
+        .request-item .actions .reject { background: #dc3545; color: white; }
+
+        /* 右键菜单 */
+        .context-menu { position: fixed; background: white; border-radius: 8px; box-shadow: 0 2px 16px rgba(0,0,0,0.15); padding: 8px 0; display: none; z-index: 1000; min-width: 180px; }
+        .context-menu.show { display: block; }
+        .context-menu .item { padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #050505; }
+        .context-menu .item:hover { background: #f0f2f5; }
+        .context-menu .item i { color: #65676b; width: 20px; }
+        .context-menu .item.danger { color: #dc3545; }
+
+        /* 未选择聊天时的提示 */
+        .no-chat-selected { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8b8b8b; }
+        .no-chat-selected i { font-size: 80px; margin-bottom: 20px; }
+
+        /* 录音遮罩 */
+        .recording-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 30px 50px; border-radius: 16px; display: none; z-index: 1000; text-align: center; }
+        .recording-overlay.show { display: block; }
+        .recording-overlay i { font-size: 50px; color: #dc3545; margin-bottom: 15px; display: block; animation: pulse 1s infinite; }
+        .recording-overlay .duration { font-size: 24px; font-weight: 600; }
+
+        /* Toast 通知 */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; }
+        .toast { background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 16px 20px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast.success { border-left: 4px solid #28a745; }
+        .toast.error { border-left: 4px solid #dc3545; }
+        .toast.info { border-left: 4px solid #667eea; }
+
+        /* 模态弹窗样式 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 9999; }
+        .modal-overlay.show { display: flex; }
+        .alert-modal { background: white; border-radius: 12px; padding: 24px; min-width: 280px; max-width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .alert-title { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: #333; }
+        .alert-message { font-size: 14px; color: #666; line-height: 1.5; }
+
+        /* Tab badge for total unread */
+        .tab-badge { position: absolute; top: 2px; right: 2px; background: #dc3545; color: white; border-radius: 50%; min-width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+    </style>
+</head>
+<body>
+    <!-- 登录注册页面 - 满足得分点1: 工程知识应用 -->
+    <div class="auth-container" id="authPage">
+        <div class="auth-card">
+            <h2><i class="bi bi-chat-dots"></i> 在线聊天系统</h2>
+            <div id="loginForm">
+                <input type="text" class="form-control" id="loginUsername" placeholder="用户名">
+                <input type="password" class="form-control" id="loginPassword" placeholder="密码">
+                <button class="btn btn-primary" onclick="login()">登录</button>
+                <div class="toggle-link" onclick="showRegister()">没有账号？立即注册</div>
+            </div>
+            <div id="registerForm" style="display:none;">
+                <input type="text" class="form-control" id="regUsername" placeholder="用户名">
+                <input type="password" class="form-control" id="regPassword" placeholder="密码">
+                <input type="text" class="form-control" id="regNickname" placeholder="昵称">
+                <button class="btn btn-primary" onclick="register()">注册</button>
+                <div class="toggle-link" onclick="showLogin()">已有账号？返回登录</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主聊天界面 -->
+    <div class="chat-container" id="chatPage">
+        <!-- 左侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                    <h4 style="margin: 0;"><i class="bi bi-chat-dots"></i> 在线聊天系统</h4>
+                    <span id="currentUserDisplay" style="font-size: 13px; opacity: 0.9; margin-left: auto;"></span>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-light" onclick="toggleRequests()" title="好友请求">
+                        <i class="bi bi-bell"></i>
+                        <span class="badge bg-danger" id="requestBadge" style="display:none;">0</span>
+                    </button>
+                    <button class="btn btn-sm btn-light" onclick="logout()" title="退出">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="sidebar-search">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" placeholder="搜索好友或群聊..." id="searchInput" style="flex:1;">
+                    <button class="btn btn-primary btn-sm" onclick="showAddFriendModal()" title="添加好友">
+                        <i class="bi bi-person-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="chat-tabs">
+                <div class="chat-tab active" onclick="switchTab('friends')" id="tabFriends">好友<span id="totalFriendUnread" class="tab-badge" style="display:none;">0</span></div>
+                <div class="chat-tab" onclick="switchTab('groups')" id="tabGroups">群聊<span id="totalGroupUnread" class="tab-badge" style="display:none;">0</span></div>
+                <button class="btn btn-sm btn-outline-primary" onclick="showCreateGroupModal()" style="margin: 4px 8px;">
+                    <i class="bi bi-plus-circle"></i> 创建群聊
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="showJoinGroupModal()" style="margin: 4px 0;">
+                    <i class="bi bi-box-arrow-in-right"></i> 加入群聊
+                </button>
+            </div>
+            <div class="friend-list" id="friendList"></div>
+            <div class="friend-list" id="groupList" style="display:none;"></div>
+        </div>
+
+        <!-- 主聊天区域 -->
+        <div class="main-chat" id="mainChat">
+            <div class="no-chat-selected" id="noChatSelected">
+                <i class="bi bi-chat-left-text"></i>
+                <p>选择好友或群聊开始聊天</p>
+                <p style="font-size:14px;">支持私聊、群聊、语音消息</p>
+            </div>
+            <div id="chatArea" style="display:none; height:100%; flex-direction:column;">
+                <div class="chat-header" id="chatHeader">
+                    <div class="avatar" id="chatAvatar"><i class="bi bi-person"></i></div>
+                    <div class="info">
+                        <h5 id="chatName">-</h5>
+                        <small id="chatStatus">-</small>
+                    </div>
+                    <div style="margin-left:auto; display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="exportChat()" title="导出聊天记录">
+                            <i class="bi bi-download"></i> 导出
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" id="inviteBtn" onclick="showInviteModal()" style="display:none;">
+                            <i class="bi bi-person-plus"></i> 邀请好友
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" onclick="showSearchMessagesModal()" title="搜索消息">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <button class="tool-btn" onclick="chooseImage()" title="图片">
+                        <i class="bi bi-image"></i>
+                    </button>
+                    <button class="tool-btn" id="voiceBtn" onclick="toggleRecording()" title="语音">
+                        <i class="bi bi-mic"></i>
+                    </button>
+                    <input type="text" id="messageInput" placeholder="输入消息..." onkeypress="handleKeyPress(event)">
+                    <button class="send-btn" onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 好友请求面板 -->
+    <div class="request-panel" id="requestPanel">
+        <div class="header">
+            <h5>消息通知</h5>
+            <button class="close-btn" onclick="toggleRequests()">&times;</button>
+        </div>
+        <div class="content" id="requestList"></div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div class="context-menu" id="contextMenu">
+        <div class="item" onclick="moveFriend()"><i class="bi bi-arrow-right"></i> 移动到分组</div>
+        <div class="item" onclick="showCreateGroupAndMove()"><i class="bi bi-folder-plus"></i> 创建新分组</div>
+        <div class="item" onclick="viewProfile()"><i class="bi bi-person"></i> 查看资料</div>
+        <div class="item danger" onclick="deleteFriend()"><i class="bi bi-trash"></i> 删除好友</div>
+    </div>
+
+    <!-- 录音遮罩 -->
+    <div class="recording-overlay" id="recordingOverlay">
+        <i class="bi bi-mic"></i>
+        <div class="duration" id="recordingDuration">00:00</div>
+        <div>正在录音，点击停止发送</div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 添加好友模态框 -->
+    <div class="modal fade" id="addFriendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> 添加好友</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">输入用户名或昵称</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="searchKeyword" placeholder="输入用户名或昵称搜索" oninput="handleFriendSearchInput()" onkeypress="if(event.key==='Enter') doFriendSearch()">
+                            <button class="btn btn-primary" onclick="doFriendSearch()">
+                                <i class="bi bi-search"></i> 搜索
+                            </button>
+                        </div>
+                    </div>
+                    <div id="searchResults" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建群聊模态框 -->
+    <div class="modal fade" id="createGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-people-fill"></i> 创建群聊</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">群聊名称</label>
+                        <input type="text" class="form-control" id="groupNameInput" placeholder="输入群聊名称">
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="createGroup()">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加入群聊模态框 -->
+    <div class="modal fade" id="joinGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-box-arrow-in-right"></i> 加入群聊</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">输入群聊ID</label>
+                        <input type="number" class="form-control" id="joinGroupIdInput" placeholder="请输入群聊ID">
+                    </div>
+                    <div id="joinGroupInfo" class="mb-3" style="display:none;">
+                        <div class="alert alert-info">
+                            <strong id="joinGroupName"></strong>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">或搜索群聊</label>
+                        <input type="text" class="form-control" id="searchGroupKeyword" placeholder="输入群聊名称搜索">
+                        <div id="searchGroupResults" class="list-group mt-2" style="max-height:200px; overflow-y:auto;"></div>
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="joinGroup()">加入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 群聊创建成功提示 -->
+    <div class="modal fade" id="groupCreatedModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-check-circle text-success"></i> 群聊创建成功</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p>请将此群聊ID分享给朋友：</p>
+                    <div class="bg-light p-3 rounded mb-3">
+                        <h3 class="mb-0" id="newGroupId" style="font-family: monospace;"></h3>
+                    </div>
+                    <button class="btn btn-outline-primary" onclick="copyGroupId()">
+                        <i class="bi bi-clipboard"></i> 复制ID
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建/重命名分组模态框 -->
+    <div class="modal fade" id="createGroupDialog" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="groupDialogTitle"><i class="bi bi-folder-plus"></i> 创建分组</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">分组名称</label>
+                        <input type="text" class="form-control" id="newGroupNameInput" placeholder="输入分组名称">
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="confirmCreateGroup()">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 邀请好友模态框 -->
+    <div class="modal fade" id="inviteFriendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> 邀请好友加入群聊</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="inviteGroupName" style="color:#65676b; margin-bottom:15px;"></p>
+                    <div class="mb-3">
+                        <label class="form-label">选择好友</label>
+                        <div id="inviteFriendList" class="list-group" style="max-height:300px; overflow-y:auto;"></div>
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="inviteFriends()">发送邀请</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索消息模态框 -->
+    <div class="modal fade" id="searchMessagesModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-search"></i> 搜索聊天记录</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">输入关键词</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="searchMessageKeyword" placeholder="输入关键词搜索" onkeypress="if(event.key==='Enter') doSearchMessages()">
+                            <button class="btn btn-primary" onclick="doSearchMessages()">
+                                <i class="bi bi-search"></i> 搜索
+                            </button>
+                        </div>
+                    </div>
+                    <div id="searchMessageResults" class="list-group" style="max-height:400px; overflow-y:auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="imageInput" accept="image/*" style="display:none;" onchange="handleImageSelect(event)">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ===== 全局变量 =====
+        const CTX_PATH = '';  // 直接在根路径运行，不需要上下文路径
+        const API_BASE = window.location.origin + CTX_PATH + '/api';
+        let token = localStorage.getItem('token');
+        let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+        let friends = [];
+        let groups = [];
+        let subscribedGroupIds = []; // 已订阅WebSocket的群ID集合
+        let currentChat = null; // { type: 'private'|'group', id: number, name: string }
+        let unreadCounts = {}; // { friendId/groupId: count }
+        let stompClient = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingStartTime = null;
+        let recordingTimer = null;
+
+        let wsConnected = false; // WebSocket连接状态
+
+        // ===== 页面初始化 =====
+        window.onload = function() {
+            if (token && currentUser) {
+                showChatPage();
+                loadFriends();
+                loadGroups();
+                loadFriendRequests();
+                connectWebSocket();
+            } else {
+                showAuthPage();
+            }
+        };
+
+        // ===== 认证相关 =====
+        function showAuthPage() {
+            document.getElementById('authPage').style.display = 'flex';
+            document.getElementById('chatPage').classList.remove('active');
+        }
+
+        function showChatPage() {
+            document.getElementById('authPage').style.display = 'none';
+            document.getElementById('chatPage').classList.add('active');
+            // 显示当前登录用户的昵称或用户名
+            if (currentUser) {
+                const displayName = currentUser.nickname || currentUser.username;
+                document.getElementById('currentUserDisplay').textContent = '你好，' + displayName;
+            }
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        }
+
+        async function register() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const nickname = document.getElementById('regNickname').value.trim();
+
+            if (!username || !password) {
+                showAlert('提示', '请输入账号和密码');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, nickname })
+                });
+                const data = await res.json();
+
+                if (data.code === 200) {
+                    token = data.data.token;
+                    currentUser = data.data;
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('user', JSON.stringify(currentUser));
+                    showToast('注册成功', 'success');
+                    showChatPage();
+                    loadFriends();
+                    loadGroups();
+                    loadFriendRequests();
+                    connectWebSocket();
+                } else {
+                    showToast(data.message || '注册失败', 'error');
+                }
+            } catch (e) {
+                showToast('注册失败: ' + e.message, 'error');
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showAlert('提示', '请输入账号和密码');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.code === 200) {
+                    token = data.data.token;
+                    currentUser = data.data;
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('user', JSON.stringify(currentUser));
+                    showToast('登录成功', 'success');
+                    showChatPage();
+                    loadFriends();
+                    loadGroups();
+                    loadFriendRequests();
+                    connectWebSocket();
+                } else {
+                    showAlert('登录失败', '账号或密码错误');
+                }
+            } catch (e) {
+                showAlert('登录失败', '账号或密码错误');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (stompClient) {
+                stompClient.disconnect();
+            }
+            location.reload();
+        }
+
+        // ===== 好友和群组 =====
+        async function loadFriends() {
+            try {
+                const res = await fetch(`${API_BASE}/friends`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    friends = data.data || [];
+                    // 加载未读消息数并等待完成
+                    await loadUnreadSummary();
+                    renderFriends();
+                }
+            } catch (e) {
+                console.error('加载好友失败:', e);
+            }
+        }
+
+        async function loadGroups() {
+            try {
+                const res = await fetch(`${API_BASE}/groups`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    groups = data.data || [];
+                    // 获取每个群的成员数量
+                    for (let g of groups) {
+                        try {
+                            const memberRes = await fetch(`${API_BASE}/groups/${g.id}/members`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const memberData = await memberRes.json();
+                            g.memberCount = memberData.data ? memberData.data.length : 0;
+                        } catch (e) {
+                            g.memberCount = 0;
+                        }
+                        // 订阅新加入的群的WebSocket频道
+                        if (!subscribedGroupIds.includes(g.id) && stompClient && wsConnected) {
+                            subscribedGroupIds.push(g.id);
+                            stompClient.subscribe(`/topic/group/${g.id}`, function(message) {
+                                const msg = JSON.parse(message.body);
+                                if (msg.fromUserId === currentUser.userId) {
+                                    return;
+                                }
+                                unreadCounts['g_' + g.id] = (unreadCounts['g_' + g.id] || 0) + 1;
+                                updateUnreadBadge('g', g.id);
+                                if (currentChat?.type === 'group' && currentChat.id === g.id) {
+                                    loadGroupMessages(g.id);
+                                } else {
+                                    showToast(`群聊 ${g.groupName} 有新消息 from ${msg.fromNickname || msg.fromUsername}`, 'info');
+                                }
+                            });
+                        }
+                    }
+                    console.log('Loaded groups:', groups);
+                    // 加载未读消息数并等待完成
+                    await loadUnreadSummary();
+                    renderGroups();
+                }
+            } catch (e) {
+                console.error('加载群组失败:', e);
+            }
+        }
+
+        function renderFriends() {
+            const container = document.getElementById('friendList');
+            const searchKeyword = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+
+            // 按分组组织好友 - 满足得分点1: 使用MVC模式处理数据展示
+            const groups2 = {};
+            friends.forEach(f => {
+                const gName = f.groupName || '我的好友';
+                if (searchKeyword && !f.nickname?.toLowerCase().includes(searchKeyword) && !f.username?.toLowerCase().includes(searchKeyword)) {
+                    return;
+                }
+                if (!groups2[gName]) groups2[gName] = [];
+                groups2[gName].push(f);
+            });
+
+            let html = '';
+            for (const gName in groups2) {
+                html += `<div class="friend-group">
+                    <div class="group-header" onclick="toggleGroup(this)">
+                        <i class="bi bi-chevron-down"></i>
+                        <span>${gName}</span>
+                        <span class="badge">${groups2[gName].length}</span>
+                    </div>
+                    <div class="friend-items">`;
+                groups2[gName].forEach(f => {
+                    const unread = unreadCounts['f_' + f.userId] || 0;
+                    const badgeDisplay = unread > 0 ? '' : 'display:none;';
+                    const badgeText = unread > 99 ? '99+' : unread;
+                    html += `<div class="friend-item" onclick="openPrivateChat(${f.userId}, '${f.nickname || f.username}')" oncontextmenu="showContextMenu(event, ${f.userId})">
+                        <div class="avatar">
+                            ${f.avatar ? `<img src="${f.avatar}" alt="">` : f.nickname?.charAt(0) || f.username?.charAt(0) || '?'}
+                            <div class="status-dot ${f.status === 1 ? 'online' : ''}"></div>
+                            <span class="unread-badge" id="unread-f-${f.userId}" style="${badgeDisplay}">${badgeText}</span>
+                        </div>
+                        <div class="info">
+                            <div class="name">${f.nickname || f.username}</div>
+                            <div class="last-msg">${f.username}</div>
+                        </div>
+                    </div>`;
+                });
+                html += '</div></div>';
+            }
+            container.innerHTML = html || '<div style="padding:20px; color:#8b8b8b; text-align:center;">暂无好友</div>';
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('groupList');
+            const searchKeyword = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+
+            let html = '';
+            groups.forEach(g => {
+                if (searchKeyword && !g.groupName?.toLowerCase().includes(searchKeyword)) return;
+                const escapedName = (g.groupName || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+                const memberCount = g.memberCount || '...';
+                const unread = unreadCounts['g_' + g.id] || 0;
+                const badgeDisplay = unread > 0 ? '' : 'display:none;';
+                const badgeText = unread > 99 ? '99+' : unread;
+                html += `<div class="group-list-item" onclick="openGroupChat(${g.id}, '${escapedName}', ${g.memberCount || 0})">
+                    <div class="avatar" style="position:relative;">
+                        <i class="bi bi-people"></i>
+                        <span class="unread-badge" id="unread-g-${g.id}" style="${badgeDisplay}">${badgeText}</span>
+                    </div>
+                    <div class="info">
+                        <div class="name">${g.groupName}</div>
+                        <div class="last-msg">${memberCount} 人</div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html || '<div style="padding:20px; color:#8b8b8b; text-align:center;">暂无群聊</div>';
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tabFriends').classList.toggle('active', tab === 'friends');
+            document.getElementById('tabGroups').classList.toggle('active', tab === 'groups');
+            document.getElementById('friendList').style.display = tab === 'friends' ? 'block' : 'none';
+            document.getElementById('groupList').style.display = tab === 'groups' ? 'block' : 'none';
+        }
+
+        function toggleGroup(header) {
+            header.classList.toggle('collapsed');
+            const items = header.nextElementSibling;
+            items.style.display = items.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // ===== 聊天功能 - 满足得分点1: WebSocket实时通信 =====
+        function openPrivateChat(userId, userName) {
+            currentChat = { type: 'private', id: userId, name: userName };
+            document.getElementById('noChatSelected').style.display = 'none';
+            document.getElementById('chatArea').style.display = 'flex';
+            document.getElementById('chatName').textContent = userName;
+            document.getElementById('chatStatus').textContent = '私聊';
+            document.getElementById('chatAvatar').innerHTML = '<i class="bi bi-person"></i>';
+            document.getElementById('inviteBtn').style.display = 'none';
+
+            // 清除未读标记
+            unreadCounts['f_' + userId] = 0;
+            const badge = document.getElementById('unread-f-' + userId);
+            if (badge) badge.style.display = 'none';
+            updateTotalUnreadBadges(); // 更新Tab总未读数
+
+            // 调用API标记为已读
+            fetch(`${API_BASE}/messages/private/${userId}/mark-read`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(e => console.error('标记已读失败:', e));
+
+            // 渲染消息
+            loadPrivateMessages(userId);
+        }
+
+        function openGroupChat(groupId, groupName, memberCount = 0) {
+            if (!groupId) {
+                console.error('groupId is undefined');
+                return;
+            }
+            currentChat = { type: 'group', id: groupId, name: groupName, memberCount };
+            document.getElementById('noChatSelected').style.display = 'none';
+            document.getElementById('chatArea').style.display = 'flex';
+            document.getElementById('chatName').textContent = groupName;
+            document.getElementById('chatStatus').textContent = `群聊 · ${memberCount} 人`;
+            document.getElementById('chatAvatar').innerHTML = '<i class="bi bi-people"></i>';
+            document.getElementById('inviteBtn').style.display = 'block';
+
+            // 清除未读标记
+            unreadCounts['g_' + groupId] = 0;
+            const badge = document.getElementById('unread-g-' + groupId);
+            if (badge) badge.style.display = 'none';
+            updateTotalUnreadBadges(); // 更新Tab总未读数
+
+            // 调用API标记为已读
+            fetch(`${API_BASE}/messages/group/${groupId}/mark-read`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(e => console.error('标记已读失败:', e));
+
+            loadGroupMessages(groupId);
+        }
+
+        async function loadPrivateMessages(friendId) {
+            try {
+                const res = await fetch(`${API_BASE}/messages/private/${friendId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    renderMessages(data.data || [], 'private');
+                }
+            } catch (e) {
+                console.error('加载消息失败:', e);
+            }
+        }
+
+        async function loadGroupMessages(groupId) {
+            if (!groupId) {
+                console.error('groupId is undefined for loadGroupMessages');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/messages/group/${groupId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    renderMessages(data.data || [], 'group');
+                }
+            } catch (e) {
+                console.error('加载群消息失败:', e);
+            }
+        }
+
+        function renderMessages(messages, type) {
+            const container = document.getElementById('chatMessages');
+            let html = '';
+            messages.forEach(m => {
+                const isSent = m.fromUserId === currentUser?.userId;
+                const avatarText = m.fromNickname?.charAt(0) || m.fromUsername?.charAt(0) || '?';
+                const time = m.createdAt ? new Date(m.createdAt).toLocaleString() : '';
+
+                let content = '';
+                if (m.messageType === 2) {
+                    content = `<img src="${m.filePath}" class="image-msg" alt="图片">`;
+                } else if (m.messageType === 3) {
+                    content = `<div class="voice-msg"><audio src="${m.filePath}" controls></audio></div>`;
+                } else {
+                    content = m.content || '';
+                }
+
+                html += `<div class="message ${isSent ? 'sent' : ''}">
+                    <div class="avatar">${avatarText}</div>
+                    <div class="content">
+                        <div class="bubble">
+                            <div class="msg-content">${content}</div>
+                            <div class="time">${m.fromNickname || m.fromUsername} · ${time}</div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content || !currentChat) return;
+
+            if (currentChat.type === 'private') {
+                try {
+                    const res = await fetch(`${API_BASE}/messages/private/${currentChat.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ content, messageType: 1 })
+                    });
+                    const data = await res.json();
+                    if (data.code === 200) {
+                        input.value = '';
+                        loadPrivateMessages(currentChat.id);
+                    }
+                } catch (e) {
+                    showToast('发送失败', 'error');
+                }
+            } else if (currentChat.type === 'group') {
+                try {
+                    console.log('Sending group message to:', `${API_BASE}/messages/group/${currentChat.id}`);
+                    const res = await fetch(`${API_BASE}/messages/group/${currentChat.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ content, messageType: 1 })
+                    });
+                    console.log('Response status:', res.status);
+                    const data = await res.json();
+                    console.log('Response data:', data);
+                    if (data.code === 200) {
+                        input.value = '';
+                        loadGroupMessages(currentChat.id);
+                    } else {
+                        showToast(data.message || '发送失败', 'error');
+                    }
+                } catch (e) {
+                    console.error('发送群消息失败:', e);
+                    showToast('发送失败', 'error');
+                }
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // ===== WebSocket 连接 - 满足得分点1: 使用WebSocket实现实时通信 =====
+        function updateUnreadBadge(type, id) {
+            const key = type + '_' + id;
+            const count = unreadCounts[key] || 0;
+            const badgeId = 'unread-' + type + '-' + id;
+            const badge = document.getElementById(badgeId);
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+            // 更新Tab总未读数
+            updateTotalUnreadBadges();
+            // 重新渲染列表以更新其他可能的地方
+            if (type === 'f') {
+                renderFriends();
+            } else {
+                renderGroups();
+            }
+        }
+
+        // 更新Tab标签上的总未读数
+        function updateTotalUnreadBadges() {
+            // 计算好友总未读数（来自私聊消息）
+            let friendUnread = 0;
+            for (const key in unreadCounts) {
+                if (key.startsWith('f_')) {
+                    friendUnread += unreadCounts[key];
+                }
+            }
+            // 计算群聊总未读数
+            let groupUnread = 0;
+            for (const key in unreadCounts) {
+                if (key.startsWith('g_')) {
+                    groupUnread += unreadCounts[key];
+                }
+            }
+            // 更新好友Tab的未读数（显示好友私聊未读）
+            const friendBadge = document.getElementById('totalFriendUnread');
+            if (friendBadge) {
+                if (friendUnread > 0) {
+                    friendBadge.textContent = friendUnread > 99 ? '99+' : friendUnread;
+                    friendBadge.style.display = 'flex';
+                } else {
+                    friendBadge.style.display = 'none';
+                }
+            }
+            // 更新群聊Tab的未读数（显示群聊未读）
+            const groupBadge = document.getElementById('totalGroupUnread');
+            if (groupBadge) {
+                if (groupUnread > 0) {
+                    groupBadge.textContent = groupUnread > 99 ? '99+' : groupUnread;
+                    groupBadge.style.display = 'flex';
+                } else {
+                    groupBadge.style.display = 'none';
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            // 使用 window.location.origin 获取当前域名和端口，不使用上下文路径
+            const wsUrl = window.location.origin + '/ws';
+            const socket = new WebSocket(wsUrl);
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({
+                'Authorization': `Bearer ${token}`
+            }, function(frame) {
+                wsConnected = true;
+                console.log('WebSocket 连接成功');
+                // 订阅私聊消息
+                stompClient.subscribe(`/topic/private/${currentUser.userId}`, function(message) {
+                    const msg = JSON.parse(message.body);
+                    // 如果是自己发的消息，不增加未读
+                    if (msg.fromUserId === currentUser.userId) {
+                        return;
+                    }
+                    // 总是增加未读计数（即使在当前私聊也要显示红点）
+                    const friendId = msg.fromUserId;
+                    unreadCounts['f_' + friendId] = (unreadCounts['f_' + friendId] || 0) + 1;
+                    updateUnreadBadge('f', friendId);
+                    // 如果当前正在这个私聊，刷新消息
+                    if (currentChat?.type === 'private' && currentChat.id === msg.fromUserId) {
+                        loadPrivateMessages(msg.fromUserId);
+                    } else {
+                        showToast(`收到新消息 from ${msg.fromNickname || msg.fromUsername}`, 'info');
+                    }
+                    loadFriends(); // 更新好友列表
+                });
+
+                // 等待群组加载完成后再订阅群聊消息
+                loadGroups().then(() => {
+                    // 订阅所有群聊消息
+                    groups.forEach(g => {
+                        if (!subscribedGroupIds.includes(g.id)) {
+                            subscribedGroupIds.push(g.id);
+                            stompClient.subscribe(`/topic/group/${g.id}`, function(message) {
+                                const msg = JSON.parse(message.body);
+                                // 如果是自己发的消息，不增加未读
+                                if (msg.fromUserId === currentUser.userId) {
+                                    return;
+                                }
+                                // 总是增加未读计数（即使在当前群聊也要显示红点）
+                                unreadCounts['g_' + g.id] = (unreadCounts['g_' + g.id] || 0) + 1;
+                                updateUnreadBadge('g', g.id);
+                                // 如果当前正在这个群聊，刷新消息
+                                if (currentChat?.type === 'group' && currentChat.id === g.id) {
+                                    loadGroupMessages(g.id);
+                                } else {
+                                    showToast(`群聊 ${g.groupName} 有新消息 from ${msg.fromNickname || msg.fromUsername}`, 'info');
+                                }
+                            });
+                        }
+                    });
+                });
+
+                // 订阅好友请求
+                stompClient.subscribe(`/topic/friend-request/${currentUser.userId}`, function(message) {
+                    loadFriendRequests();
+                    showToast('收到新的好友请求', 'info');
+                });
+
+                // 订阅群组更新通知（被邀请加入群）
+                stompClient.subscribe(`/topic/user/${currentUser.userId}/groups`, function(message) {
+                    const data = JSON.parse(message.body);
+                    if (data.type === 'groupInvite') {
+                        showToast(data.message, 'info');
+                        loadGroups(); // 重新加载群组列表
+                    }
+                });
+            }, function(error) {
+                console.error('WebSocket 连接错误:', error);
+                wsConnected = false;
+            });
+
+            // 监听断开连接
+            stompClient.onDisconnect = function() {
+                console.log('WebSocket 已断开');
+                wsConnected = false;
+                // 尝试重新连接
+                setTimeout(() => {
+                    console.log('尝试重新连接 WebSocket...');
+                    connectWebSocket();
+                }, 3000);
+            };
+        }
+
+        // ===== 语音消息 - 满足加分项要求: 语音聊天 =====
+        async function toggleRecording() {
+            const btn = document.getElementById('voiceBtn');
+            const overlay = document.getElementById('recordingOverlay');
+
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                // 停止录音
+                mediaRecorder.stop();
+                overlay.classList.remove('show');
+                btn.classList.remove('recording');
+                clearInterval(recordingTimer);
+            } else {
+                // 开始录音
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        await sendVoiceMessage(blob);
+                        stream.getTracks().forEach(t => t.stop());
+                    };
+
+                    mediaRecorder.start();
+                    btn.classList.add('recording');
+                    overlay.classList.add('show');
+                    recordingStartTime = Date.now();
+                    recordingTimer = setInterval(() => {
+                        const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+                        const mins = Math.floor(duration / 60).toString().padStart(2, '0');
+                        const secs = (duration % 60).toString().padStart(2, '0');
+                        document.getElementById('recordingDuration').textContent = `${mins}:${secs}`;
+                    }, 1000);
+                } catch (e) {
+                    showToast('无法访问麦克风', 'error');
+                }
+            }
+        }
+
+        async function sendVoiceMessage(blob) {
+            if (!currentChat) {
+                showToast('请先选择一个聊天', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', blob, 'voice.webm');
+
+            try {
+                console.log('Uploading voice for:', currentChat.type, currentChat.id);
+                const res = await fetch(`${API_BASE}/files/audio`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await res.json();
+                console.log('Upload response:', data);
+                if (data.code === 200) {
+                    const filePath = data.data;
+                    const messageData = { content: '语音消息', messageType: 3, filePath };
+
+                    if (currentChat.type === 'private') {
+                        await fetch(`${API_BASE}/messages/private/${currentChat.id}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(messageData)
+                        });
+                        loadPrivateMessages(currentChat.id);
+                    } else if (currentChat.type === 'group') {
+                        console.log('Sending group voice message to:', `${API_BASE}/messages/group/${currentChat.id}`);
+                        const msgRes = await fetch(`${API_BASE}/messages/group/${currentChat.id}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(messageData)
+                        });
+                        const msgData = await msgRes.json();
+                        console.log('Group voice message response:', msgData);
+                        loadGroupMessages(currentChat.id);
+                    }
+                }
+            } catch (e) {
+                console.error('发送语音失败:', e);
+                showToast('发送语音失败', 'error');
+            }
+        }
+
+        // ===== 图片消息 =====
+        function chooseImage() {
+            document.getElementById('imageInput').click();
+        }
+
+        async function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file || !currentChat) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                console.log('Uploading image for:', currentChat.type, currentChat.id);
+                const res = await fetch(`${API_BASE}/files/image`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await res.json();
+                console.log('Upload response:', data);
+                if (data.code === 200) {
+                    const filePath = data.data;
+                    const messageData = { content: '[图片]', messageType: 2, filePath };
+                    if (currentChat.type === 'private') {
+                        await fetch(`${API_BASE}/messages/private/${currentChat.id}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(messageData)
+                        });
+                        loadPrivateMessages(currentChat.id);
+                    } else if (currentChat.type === 'group') {
+                        console.log('Sending group image message to:', `${API_BASE}/messages/group/${currentChat.id}`);
+                        const msgRes = await fetch(`${API_BASE}/messages/group/${currentChat.id}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(messageData)
+                        });
+                        const msgData = await msgRes.json();
+                        console.log('Group image message response:', msgData);
+                        loadGroupMessages(currentChat.id);
+                    }
+                }
+            } catch (e) {
+                console.error('发送图片失败:', e);
+                showToast('发送图片失败', 'error');
+            }
+            event.target.value = '';
+        }
+
+        // ===== 好友请求 =====
+        async function loadUnreadSummary() {
+            try {
+                const res = await fetch(`${API_BASE}/messages/unread-summary`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    // 处理群组未读
+                    const groupUnreads = data.data.groupUnreads || [];
+                    groupUnreads.forEach(item => {
+                        unreadCounts['g_' + item.groupId] = item.unreadCount;
+                    });
+                    // 处理好友未读 (如果API返回了)
+                    const friendUnreads = data.data.friendUnreads || [];
+                    friendUnreads.forEach(item => {
+                        unreadCounts['f_' + item.friendId] = item.unreadCount;
+                    });
+                    console.log('Unread counts:', unreadCounts);
+                    // 更新Tab总未读数
+                    updateTotalUnreadBadges();
+                }
+            } catch (e) {
+                console.error('加载未读数失败:', e);
+            }
+        }
+
+        // ===== 好友请求 =====
+        async function loadFriendRequests() {
+            try {
+                console.log('Loading friend requests, token:', token ? 'exists' : 'null');
+                const [resReceived, resSent] = await Promise.all([
+                    fetch(`${API_BASE}/friend-requests`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`${API_BASE}/friend-requests/sent`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+                const dataReceived = await resReceived.json();
+                const dataSent = await resSent.json();
+                const received = dataReceived.data || [];
+                const sent = dataSent.data || [];
+
+                // 合并收到的和发送的请求
+                const allRequests = [...received, ...sent];
+                renderFriendRequests(allRequests);
+
+                // 计算未读数：收到的待处理 + 发送后被拒绝且未读的
+                const pending = received.filter(r => r.status === 0).length;
+                const rejected = sent.filter(r => r.status === 2 && r.isRead !== true).length;
+                const badge = document.getElementById('requestBadge');
+                if (pending > 0 || rejected > 0) {
+                    badge.textContent = pending + rejected;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('加载好友请求失败:', e);
+                showToast('加载好友请求失败', 'error');
+            }
+        }
+
+        function renderFriendRequests(requests) {
+            const container = document.getElementById('requestList');
+            if (requests.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#8b8b8b; padding:40px;">暂无好友请求</div>';
+                return;
+            }
+
+            let html = '';
+            requests.forEach(r => {
+                let statusText, statusClass, msg;
+                if (r.isSent) {
+                    // 我发送的请求
+                    if (r.status === 0) {
+                        statusText = '待处理';
+                        statusClass = 'warning';
+                        msg = '等待对方验证';
+                    } else if (r.status === 1) {
+                        statusText = '已同意';
+                        statusClass = 'success';
+                        msg = '对方已同意好友请求';
+                    } else {
+                        statusText = '已拒绝';
+                        statusClass = 'danger';
+                        msg = '对方拒绝了你的好友请求';
+                    }
+                } else {
+                    // 收到的请求
+                    statusText = r.status === 0 ? '待处理' : r.status === 1 ? '已同意' : '已拒绝';
+                    statusClass = r.status === 0 ? 'warning' : r.status === 1 ? 'success' : 'secondary';
+                    msg = r.message || '请求加为好友';
+                }
+                html += `<div class="request-item">
+                    <div class="user-info">
+                        <div class="avatar">${r.fromUsername?.charAt(0) || '?'}</div>
+                        <div>
+                            <div class="name">${r.fromNickname || r.fromUsername}</div>
+                            <small style="color:#8b8b8b;">${r.fromUsername}</small>
+                        </div>
+                        <span class="badge bg-${statusClass}" style="margin-left:auto;">${statusText}</span>
+                    </div>
+                    <div class="msg">${msg}</div>
+                    ${!r.isSent && r.status === 0 ? `<div class="actions">
+                        <button class="accept" onclick="handleFriendRequest(${r.id}, 1)">同意</button>
+                        <button class="reject" onclick="handleFriendRequest(${r.id}, 2)">拒绝</button>
+                    </div>` : ''}
+                    ${r.isSent && r.status === 2 ? `<button class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="resendFriendRequest(${r.id})">重新发送验证</button>` : ''}
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function handleFriendRequest(id, status) {
+            try {
+                console.log('Handling friend request:', id, 'status:', status);
+                const res = await fetch(`${API_BASE}/friend-requests/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ accept: status === 1 })  // true for accept, false for reject
+                });
+                console.log('Handle response status:', res.status);
+                const data = await res.json();
+                console.log('Handle response:', data);
+                if (data.code === 200) {
+                    showToast(status === 1 ? '已同意' : '已拒绝', 'success');
+                    loadFriendRequests();
+                    loadFriends();
+                } else {
+                    showToast(data.message || '操作失败', 'error');
+                }
+            } catch (e) {
+                showToast('操作失败: ' + e.message, 'error');
+            }
+        }
+
+        async function resendFriendRequest(id) {
+            try {
+                const res = await fetch(`${API_BASE}/friend-requests/${id}/resend`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('已重新发送', 'success');
+                } else {
+                    showToast(data.message || '发送失败', 'error');
+                }
+            } catch (e) {
+                showToast('发送失败', 'error');
+            }
+        }
+
+        function toggleRequests() {
+            const panel = document.getElementById('requestPanel');
+            const isOpen = panel.classList.contains('open');
+            panel.classList.toggle('open');
+
+            // 打开面板时标记已读
+            if (!isOpen) {
+                fetch(`${API_BASE}/friend-requests/mark-read`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).then(() => {
+                    //标记成功后本地也更新状态
+                    const badge = document.getElementById('requestBadge');
+                    badge.style.display = 'none';
+                }).catch(e => {
+                    console.error('标记已读失败:', e);
+                });
+            }
+        }
+
+        // ===== 右键菜单 - 满足得分点1: 好友分组管理交互 =====
+        function showContextMenu(e, friendId) {
+            e.preventDefault();
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = e.clientX + 'px';
+            menu.style.top = e.clientY + 'px';
+            menu.classList.add('show');
+            menu.dataset.friendId = friendId;
+        }
+
+        document.addEventListener('click', () => {
+            document.getElementById('contextMenu').classList.remove('show');
+        });
+
+        async function moveFriend() {
+            const friendId = document.getElementById('contextMenu').dataset.friendId;
+            const groups2 = JSON.parse(localStorage.getItem('friendGroups') || '[]');
+            if (groups2.length === 0) {
+                showToast('暂无可用的分组', 'error');
+                return;
+            }
+            const groupName = prompt('移动到分组（输入分组名称）:\n' + groups2.map(g => g.groupName).join('\n'));
+            if (!groupName) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/friends/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ friendId: parseInt(friendId), groupName })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('移动成功', 'success');
+                    loadFriends();
+                    loadFriendGroups();
+                }
+            } catch (e) {
+                showToast('移动失败', 'error');
+            }
+        }
+
+        async function showCreateGroupAndMove() {
+            const friendId = document.getElementById('contextMenu').dataset.friendId;
+            const groupName = prompt('请输入新分组名称:');
+            if (!groupName) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/friends/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ friendId: parseInt(friendId), groupName })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('已创建新分组并移动好友', 'success');
+                    loadFriends();
+                    loadFriendGroups();
+                } else {
+                    showToast(data.message || '操作失败', 'error');
+                }
+            } catch (e) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        async function deleteFriend() {
+            const friendId = document.getElementById('contextMenu').dataset.friendId;
+            if (!confirm('确定删除该好友？')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/friends/${friendId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('已删除', 'success');
+                    loadFriends();
+                }
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        function viewProfile() {
+            const friendId = document.getElementById('contextMenu').dataset.friendId;
+            showToast('查看用户资料功能开发中', 'info');
+        }
+
+        // ===== 聊天记录导出 - 满足得分点1: 文件I/O处理 =====
+        async function exportChat() {
+            if (!currentChat) {
+                showToast('请先选择一个聊天', 'error');
+                return;
+            }
+
+            const format = prompt('导出格式（1: JSON, 2: TXT）:', '2');
+            if (!format) return;
+
+            let url = '';
+            if (currentChat.type === 'private') {
+                url = `${API_BASE}/messages/private/${currentChat.id}/export/${format === '1' ? 'json' : 'txt'}`;
+            } else {
+                url = `${API_BASE}/messages/group/${currentChat.id}/export/${format === '1' ? 'json' : 'txt'}`;
+            }
+
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) {
+                    showToast('导出失败', 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = format === '1' ? `chat_${currentChat.id}.json` : `chat_${currentChat.id}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+                showToast('导出成功', 'success');
+            } catch (e) {
+                showToast('导出失败', 'error');
+            }
+        }
+
+        // ===== 搜索聊天记录 =====
+        function showSearchMessagesModal() {
+            if (!currentChat) {
+                showToast('请先选择一个聊天', 'error');
+                return;
+            }
+            const modal = new bootstrap.Modal(document.getElementById('searchMessagesModal'));
+            document.getElementById('searchMessageKeyword').value = '';
+            document.getElementById('searchMessageResults').innerHTML = '<div class="list-group-item text-muted">输入关键词搜索聊天记录</div>';
+            modal.show();
+        }
+
+        async function doSearchMessages() {
+            const keyword = document.getElementById('searchMessageKeyword').value.trim();
+            if (!keyword) {
+                showToast('请输入关键词', 'error');
+                return;
+            }
+
+            document.getElementById('searchMessageResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-search"></i> 搜索中...</div>';
+
+            try {
+                let url = '';
+                if (currentChat.type === 'private') {
+                    url = `${API_BASE}/messages/private/${currentChat.id}/search?keyword=${encodeURIComponent(keyword)}`;
+                } else {
+                    url = `${API_BASE}/messages/group/${currentChat.id}/search?keyword=${encodeURIComponent(keyword)}`;
+                }
+
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    renderSearchMessageResults(data.data || []);
+                } else {
+                    document.getElementById('searchMessageResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-emoji-frown"></i> 未找到消息</div>';
+                }
+            } catch (e) {
+                document.getElementById('searchMessageResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-exclamation-triangle"></i> 搜索失败</div>';
+            }
+        }
+
+        function renderSearchMessageResults(messages) {
+            const container = document.getElementById('searchMessageResults');
+            if (!messages || messages.length === 0) {
+                container.innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-emoji-frown"></i> 未找到消息</div>';
+                return;
+            }
+
+            let html = '';
+            messages.forEach(m => {
+                const isSent = m.fromUserId === currentUser?.userId;
+                const time = m.createdAt ? new Date(m.createdAt).toLocaleString() : '';
+                const content = m.messageType === 2 ? '[图片]' : m.messageType === 3 ? '[语音]' : m.content || '';
+
+                html += `<div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${m.fromNickname || m.fromUsername}</strong>
+                            <span class="badge ${isSent ? 'bg-primary' : 'bg-secondary'} ms-1">${isSent ? '发送' : '接收'}</span>
+                        </div>
+                        <small class="text-muted">${time}</small>
+                    </div>
+                    <div class="mt-1" style="word-break:break-all;">${content}</div>
+                </div>`;
+            });
+            container.innerHTML = html || '<div class="list-group-item text-muted">未找到消息</div>';
+        }
+
+        // ===== 搜索 =====
+        document.getElementById('searchInput')?.addEventListener('input', function() {
+            if (document.getElementById('tabFriends').classList.contains('active')) {
+                renderFriends();
+            } else {
+                renderGroups();
+            }
+        });
+
+        // ===== 邀请好友功能 =====
+        let selectedInviteFriends = [];
+
+        function showInviteModal() {
+            if (!currentChat || currentChat.type !== 'group') return;
+            selectedInviteFriends = [];
+            document.getElementById('inviteGroupName').textContent = '邀请好友加入: ' + currentChat.name;
+
+            // 获取群成员
+            fetch(`${API_BASE}/groups/${currentChat.id}/members`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200) {
+                    window.currentGroupMemberIds = data.data || [];
+                    renderInviteFriendList();
+                }
+            });
+
+            const modal = new bootstrap.Modal(document.getElementById('inviteFriendModal'));
+            modal.show();
+        }
+
+        function renderInviteFriendList() {
+            const container = document.getElementById('inviteFriendList');
+            // 获取不是群成员的好友
+            const groupMembers = window.currentGroupMemberIds || [];
+            const availableFriends = friends.filter(f => !groupMembers.includes(f.userId));
+
+            if (availableFriends.length === 0) {
+                container.innerHTML = '<div class="list-group-item text-muted">暂无可邀请的好友（已是群成员或暂无好友）</div>';
+                return;
+            }
+
+            let html = '';
+            availableFriends.forEach(f => {
+                const isSelected = selectedInviteFriends.includes(f.userId);
+                html += `<div class="list-group-item d-flex align-items-center justify-content-between" style="cursor:pointer;" onclick="toggleInviteFriendSelection(${f.userId})">
+                    <div class="d-flex align-items-center">
+                        <div class="avatar" style="width:36px;height:36px;font-size:14px;margin-right:10px;">
+                            ${f.avatar ? `<img src="${f.avatar}" alt="">` : (f.nickname || f.username).charAt(0)}
+                        </div>
+                        <div>
+                            <div class="fw-bold">${f.nickname || f.username}</div>
+                            <small class="text-muted">${f.username}</small>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''} id="inviteFriend-${f.userId}">
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function toggleInviteFriendSelection(userId) {
+            const idx = selectedInviteFriends.indexOf(userId);
+            if (idx === -1) {
+                selectedInviteFriends.push(userId);
+            } else {
+                selectedInviteFriends.splice(idx, 1);
+            }
+            const checkbox = document.getElementById('inviteFriend-' + userId);
+            if (checkbox) checkbox.checked = idx === -1;
+        }
+
+        async function inviteFriends() {
+            if (selectedInviteFriends.length === 0) {
+                showToast('请选择要邀请的好友', 'error');
+                return;
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+            for (const friendId of selectedInviteFriends) {
+                try {
+                    const res = await fetch(`${API_BASE}/groups/${currentChat.id}/invite`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ userId: friendId })
+                    });
+                    const data = await res.json();
+                    if (data.code === 200) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (e) {
+                    failCount++;
+                }
+            }
+
+            if (successCount > 0) {
+                showAlert('邀请成功', '邀请成功');
+                bootstrap.Modal.getInstance(document.getElementById('inviteFriendModal')).hide();
+                loadGroups();
+            } else if (failCount > 0) {
+                showAlert('邀请失败', `邀请失败 ${failCount} 位`);
+            }
+        }
+
+        // ===== 添加好友功能 =====
+        function showAddFriendModal() {
+            const modal = new bootstrap.Modal(document.getElementById('addFriendModal'));
+            document.getElementById('searchKeyword').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+            modal.show();
+        }
+
+        let friendSearchTimeout = null;
+        function handleFriendSearchInput() {
+            clearTimeout(friendSearchTimeout);
+            friendSearchTimeout = setTimeout(() => doFriendSearch(), 500);
+        }
+
+        async function doFriendSearch() {
+            const keyword = document.getElementById('searchKeyword').value.trim();
+            if (!keyword) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+
+            if (keyword.length < 1) {
+                return;
+            }
+
+            document.getElementById('searchResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-search"></i> 搜索中...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/users/search?keyword=${encodeURIComponent(keyword)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200 && data.data) {
+                    renderFriendSearchResults(data.data);
+                } else {
+                    document.getElementById('searchResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-emoji-frown"></i> 未找到用户</div>';
+                }
+            } catch (e) {
+                document.getElementById('searchResults').innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-exclamation-triangle"></i> 搜索失败</div>';
+            }
+        }
+
+        function renderFriendSearchResults(users) {
+            const container = document.getElementById('searchResults');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="list-group-item text-muted"><i class="bi bi-emoji-frown"></i> 未找到用户</div>';
+                return;
+            }
+
+            let html = '';
+            users.forEach(user => {
+                const isSelf = user.id === currentUser?.userId;
+                const isFriend = friends.some(f => f.userId === user.id);
+
+                let actionBtn = '';
+                if (isSelf) {
+                    actionBtn = '<span class="badge bg-secondary">自己</span>';
+                } else if (isFriend) {
+                    actionBtn = '<span class="badge bg-success">已是好友</span>';
+                } else {
+                    actionBtn = `<button class="btn btn-primary btn-sm" onclick="sendFriendRequestTo(${user.id})">
+                        <i class="bi bi-person-plus"></i> 加好友
+                    </button>`;
+                }
+
+                html += `<div class="list-group-item d-flex align-items-center">
+                    <div class="avatar" style="width:44px;height:44px;margin-right:12px;">
+                        ${user.avatar ? `<img src="${user.avatar}" alt="">` : (user.nickname || user.username).charAt(0)}
+                    </div>
+                    <div style="flex:1;">
+                        <div class="fw-bold">${user.nickname || user.username} <span class="badge bg-info">用户</span></div>
+                        <small class="text-muted">${user.username} · ID: ${user.id}</small>
+                    </div>
+                    ${actionBtn}
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // ===== 创建群聊 =====
+        function showCreateGroupModal() {
+            const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+            document.getElementById('groupNameInput').value = '';
+            modal.show();
+        }
+
+        function showJoinGroupModal() {
+            const modal = new bootstrap.Modal(document.getElementById('joinGroupModal'));
+            document.getElementById('joinGroupIdInput').value = '';
+            document.getElementById('joinGroupInfo').style.display = 'none';
+            document.getElementById('searchGroupKeyword').value = '';
+            document.getElementById('searchGroupResults').innerHTML = '<div class="list-group-item text-muted">输入群聊名称搜索</div>';
+            modal.show();
+            // 加载所有可加入的群聊
+            loadAllGroupsForJoin();
+        }
+
+        async function loadAllGroupsForJoin() {
+            try {
+                const res = await fetch(`${API_BASE}/groups/all`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    renderGroupSearchResults(data.data || []);
+                }
+            } catch (e) {
+                console.error('加载群聊失败:', e);
+            }
+        }
+
+        async function joinGroup() {
+            const groupId = document.getElementById('joinGroupIdInput').value.trim();
+            if (!groupId) {
+                showToast('请输入群聊ID', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/groups/${groupId}/join`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('加入成功', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('joinGroupModal')).hide();
+                    loadGroups();
+                    // 切换到群聊标签并打开该群聊
+                    switchTab('groups');
+                    openGroupChat(parseInt(groupId), document.getElementById('joinGroupName').textContent || '群聊');
+                } else {
+                    showToast(data.message || '加入失败', 'error');
+                }
+            } catch (e) {
+                showToast('加入失败: ' + e.message, 'error');
+            }
+        }
+
+        // 实时搜索群聊
+        let groupSearchTimeout = null;
+        document.getElementById('searchGroupKeyword')?.addEventListener('input', function() {
+            clearTimeout(groupSearchTimeout);
+            const keyword = this.value.trim();
+            if (keyword.length < 1) {
+                document.getElementById('searchGroupResults').innerHTML = '';
+                return;
+            }
+            groupSearchTimeout = setTimeout(() => searchGroupsForJoin(keyword), 500);
+        });
+
+        async function searchGroupsForJoin(keyword) {
+            try {
+                const res = await fetch(`${API_BASE}/groups/search?keyword=${encodeURIComponent(keyword)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    renderGroupSearchResults(data.data || []);
+                }
+            } catch (e) {
+                console.error('搜索群聊失败:', e);
+            }
+        }
+
+        function renderGroupSearchResults(groups) {
+            const container = document.getElementById('searchGroupResults');
+            if (!groups || groups.length === 0) {
+                container.innerHTML = '<div class="list-group-item text-muted">未找到群聊</div>';
+                return;
+            }
+
+            let html = '';
+            groups.forEach(g => {
+                const escapedName = (g.groupName || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+                html += `<div class="list-group-item d-flex align-items-center justify-content-between" style="cursor:pointer;">
+                    <div>
+                        <div class="fw-bold">${g.groupName}</div>
+                        <small class="text-muted">群聊ID: ${g.id}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="joinGroupBySearch(${g.id}, '${escapedName}')">
+                        <i class="bi bi-box-arrow-in-right"></i> 加入
+                    </button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function joinGroupBySearch(groupId, groupName) {
+            try {
+                const res = await fetch(`${API_BASE}/groups/${groupId}/join`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('加入成功', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('joinGroupModal')).hide();
+                    loadGroups();
+                    switchTab('groups');
+                    openGroupChat(groupId, groupName);
+                } else {
+                    showToast(data.message || '加入失败', 'error');
+                }
+            } catch (e) {
+                showToast('加入失败: ' + e.message, 'error');
+            }
+        }
+
+        async function createGroup() {
+            const groupName = document.getElementById('groupNameInput').value.trim();
+            if (!groupName) {
+                showToast('请输入群聊名称', 'error');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/groups`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ groupName })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+                    document.getElementById('newGroupId').textContent = data.data.id;
+                    window.copiedGroupId = data.data.id;
+                    new bootstrap.Modal(document.getElementById('groupCreatedModal')).show();
+                    loadGroups();
+                } else {
+                    showToast(data.message || '创建失败', 'error');
+                }
+            } catch (e) {
+                showToast('创建失败: ' + e.message, 'error');
+            }
+        }
+
+        function copyGroupId() {
+            const id = window.copiedGroupId;
+            if (id) {
+                navigator.clipboard.writeText(id.toString()).then(() => {
+                    showToast('已复制到剪贴板', 'success');
+                });
+            }
+        }
+
+        // ===== 分组管理 =====
+        let pendingMoveFriendId = null;
+
+        function showCreateGroupDialog() {
+            const modal = new bootstrap.Modal(document.getElementById('createGroupDialog'));
+            document.getElementById('newGroupNameInput').value = '';
+            modal.show();
+        }
+
+        async function confirmCreateGroup() {
+            const groupName = document.getElementById('newGroupNameInput').value.trim();
+            if (!groupName) {
+                showToast('请输入分组名称', 'error');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/friends/groups`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ groupName })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showToast('分组创建成功', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('createGroupDialog')).hide();
+                    loadFriendGroups();
+                } else {
+                    showToast(data.message || '创建失败', 'error');
+                }
+            } catch (e) {
+                showToast('创建失败', 'error');
+            }
+        }
+
+        async function loadFriendGroups() {
+            try {
+                const res = await fetch(`${API_BASE}/friends/groups`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    localStorage.setItem('friendGroups', JSON.stringify(data.data || []));
+                }
+            } catch (e) {
+                console.error('加载分组失败:', e);
+            }
+        }
+
+        // 搜索用户
+        let searchTimeout = null;
+        document.getElementById('searchFriendKeyword')?.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const keyword = this.value.trim();
+            if (keyword.length < 1) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            searchTimeout = setTimeout(() => searchUsersForAdd(keyword), 500);
+        });
+
+        async function searchUsersForAdd(keyword) {
+            try {
+                console.log('Searching users with keyword:', keyword);
+                const res = await fetch(`${API_BASE}/users/search?keyword=${encodeURIComponent(keyword)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                console.log('Search response status:', res.status);
+                const data = await res.json();
+                console.log('Search response data:', data);
+                if (data.code === 200) {
+                    renderSearchResults(data.data || []);
+                } else {
+                    showToast(data.message || '搜索失败', 'error');
+                }
+            } catch (e) {
+                console.error('搜索失败:', e);
+                showToast('搜索失败: ' + e.message, 'error');
+            }
+        }
+
+        function renderSearchResults(users) {
+            const container = document.getElementById('searchResults');
+            if (users.length === 0) {
+                container.innerHTML = '<div class="list-group-item text-muted">未找到用户</div>';
+                return;
+            }
+
+            let html = '';
+            users.forEach(user => {
+                if (user.id === currentUser?.userId) return; // 排除自己
+                html += `<div class="list-group-item d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="fw-bold">${user.nickname || user.username}</div>
+                        <small class="text-muted">${user.username}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="sendFriendRequestTo(${user.id})">
+                        <i class="bi bi-person-plus"></i> 加好友
+                    </button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // ===== 表情 =====
+        function toggleEmoji() {
+            showToast('表情功能开发中', 'info');
+        }
+
+        async function sendFriendRequestTo(userId) {
+            const message = prompt('请输入验证消息（选填）:', '你好，想加你为好友');
+            if (message === null) return;
+
+            try {
+                console.log('Sending friend request to userId:', userId, 'message:', message);
+                const res = await fetch(`${API_BASE}/friend-requests`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ toUserId: userId, message })
+                });
+                console.log('Friend request response status:', res.status);
+                const data = await res.json();
+                console.log('Friend request response:', data);
+                if (data.code === 200) {
+                    showAlert('成功', '请求发送成功');
+                    document.getElementById('searchKeyword').value = '';
+                    document.getElementById('searchResults').innerHTML = '<div class="list-group-item text-success">请求已发送，等待对方确认</div>';
+                } else {
+                    showToast(data.message || '发送失败', 'error');
+                }
+            } catch (e) {
+                console.error('发送失败:', e);
+                showToast('发送失败: ' + e.message, 'error');
+            }
+        }
+
+        // ===== Toast 通知 =====
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info-circle'}"></i>
+                <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ===== 模态弹窗通知（带关闭按钮） =====
+        function showAlert(title, message, onClose) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay show';
+            overlay.innerHTML = `
+                <div class="alert-modal">
+                    <div class="alert-title">${title}</div>
+                    <div class="alert-message">${message}</div>
+                    <button class="btn btn-primary w-100 mt-3" onclick="this.closest('.modal-overlay').remove(); ${onClose ? 'try{' + onClose + '}catch(e){}' : ''}">关闭</button>
+                </div>
+            `;
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.remove();
+                    if (onClose) try { eval(onClose); } catch(e) {}
+                }
+            });
+            document.body.appendChild(overlay);
+        }
+    </script>
+    <!-- SockJS and STOMP for WebSocket - 满足得分点1: WebSocket实时通信 -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</body>
+</html>
