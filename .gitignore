@@ -1,0 +1,18 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Backend build output
+backend/instant-chat/target/
+backend/instant-chat/*.log
+
+# Client node_modules
+client/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
